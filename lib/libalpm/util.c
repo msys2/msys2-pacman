@@ -30,7 +30,9 @@
 #include <errno.h>
 #include <limits.h>
 #include <sys/wait.h>
+#ifndef __MSYS__
 #include <sys/socket.h>
+#endif
 #include <fnmatch.h>
 #include <poll.h>
 #include <signal.h>
@@ -483,6 +485,9 @@ static int _alpm_chroot_write_to_child(alpm_handle_t *handle, int fd,
 		_alpm_cb_io out_cb, void *cb_ctx)
 {
 	ssize_t nwrite;
+#ifdef __MSYS__
+	struct sigaction newaction, oldaction;
+#endif
 
 	if(*buf_size == 0) {
 		/* empty buffer, ask the callback for more */
@@ -492,7 +497,20 @@ static int _alpm_chroot_write_to_child(alpm_handle_t *handle, int fd,
 		}
 	}
 
+#ifdef __MSYS__
+	/* ignore SIGPIPE in case the pipe has been closed */
+	newaction.sa_handler = SIG_IGN;
+	sigemptyset(&newaction.sa_mask);
+	newaction.sa_flags = 0;
+	sigaction(SIGPIPE, &newaction, &oldaction);
+
+	nwrite = write(fd, buf, *buf_size);
+
+	/* restore previous SIGPIPE handler */
+	sigaction(SIGPIPE, &oldaction, NULL);
+#else
 	nwrite = send(fd, buf, *buf_size, MSG_NOSIGNAL);
+#endif
 
 	if(nwrite != -1) {
 		/* write was successful, remove the written data from the buffer */
@@ -630,13 +648,21 @@ int _alpm_run_chroot(alpm_handle_t *handle, const char *cmd, char *const argv[],
 	/* Flush open fds before fork() to avoid cloning buffers */
 	fflush(NULL);
 
+#ifdef __MSYS__
+	if(pipe(child2parent_pipefd) == -1) {
+#else
 	if(socketpair(AF_UNIX, SOCK_STREAM, 0, child2parent_pipefd) == -1) {
+#endif
 		_alpm_log(handle, ALPM_LOG_ERROR, _("could not create pipe (%s)\n"), strerror(errno));
 		retval = 1;
 		goto cleanup;
 	}
 
+#ifdef __MSYS__
+	if(pipe(parent2child_pipefd) == -1) {
+#else
 	if(socketpair(AF_UNIX, SOCK_STREAM, 0, parent2child_pipefd) == -1) {
+#endif
 		_alpm_log(handle, ALPM_LOG_ERROR, _("could not create pipe (%s)\n"), strerror(errno));
 		retval = 1;
 		goto cleanup;
