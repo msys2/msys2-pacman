@@ -104,9 +104,6 @@ def create_parser():
     parser.add_option("--scriptlet-shell", type = "string",
                       dest = "scriptletshell", default = "/bin/sh",
                       help = "specify path to shell used for install scriptlets")
-    parser.add_option("--ldconfig", type = "string",
-                      dest = "ldconfig", default = "/sbin/ldconfig",
-                      help = "specify path to ldconfig")
     parser.add_option("--review", action = "store_true",
                       dest = "review", default = False,
                       help = "review test files, test output, and saved logs")
@@ -146,7 +143,6 @@ if __name__ == "__main__":
     env.pacman["valgrind"] = opts.valgrind
     env.pacman["manual-confirm"] = opts.manualconfirm
     env.pacman["scriptlet-shell"] = opts.scriptletshell
-    env.pacman["ldconfig"] = opts.ldconfig
     env.config["gpg"] = not opts.missing_gpg
     env.config["nls"] = not opts.missing_nls
     env.config["curl"] = not opts.missing_curl
