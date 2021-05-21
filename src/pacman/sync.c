@@ -28,6 +28,12 @@
 #include <sys/stat.h>
 #include <fnmatch.h>
 
+#ifdef __MSYS__
+#include <termios.h>
+#include <handle.h>
+#include <trans.h>
+#endif
+
 #include <alpm.h>
 #include <alpm_list.h>
 
@@ -689,8 +695,134 @@ cleanup:
 	return ret;
 }
 
+#ifdef __MSYS__
+
+/* Tries to kill all cygwin processes except this one */
+static int kill_all_other_msys_processes() {
+	DIR *dir;
+	struct dirent *ent;
+	char self_winpid[50];
+	int found_one = 0;
+	FILE *self = NULL;
+	size_t proc_entries = 0;
+	char **args = NULL;
+	size_t pos = 0;
+
+	self = fopen("/proc/self/winpid", "r");
+	if (self == NULL)
+		return -1;
+	fscanf(self, "%s", self_winpid);
+	fclose(self);
+
+	dir = opendir("/proc");
+	if (dir == NULL)
+		return -1;
+
+	while ((ent = readdir(dir)))
+		proc_entries++;
+	seekdir(dir, 0);
+
+	args = alloca(sizeof(char *) * (2 + (proc_entries * 2) + 1));
+	args[pos++] = "taskkill";
+	args[pos++] = "/F";
+
+	while ((ent = readdir (dir))) {
+		FILE *fp = NULL;
+		char winpid_path[PATH_MAX];
+
+		strcpy(winpid_path, "/proc/");
+		strcat(winpid_path, ent->d_name);
+		strcat(winpid_path, "/winpid");
+
+		fp = fopen(winpid_path, "r");
+		if (fp != NULL) {
+			char winpid[50];
+			fscanf(fp, "%s", winpid);
+
+			if (strcmp(winpid, self_winpid) != 0) {
+				args[pos++] = "/pid";
+				char *pidarg = alloca(strlen(winpid) + 1);
+				strcpy(pidarg, winpid);
+				args[pos++] = pidarg;
+				found_one = 1;
+			}
+
+			fclose(fp);
+		}
+	}
+	args[pos] = NULL;
+	closedir(dir);
+
+	if (!found_one)
+		return 0;
+
+	setenv("MSYS2_ARG_CONV_EXCL", "*", 1);
+	if (execvp(args[0], args) == -1) {
+		return -1;
+	}
+
+	return 0;
+}
+
+static int core_update(int *needed)
+{
+	int retval;
+	alpm_list_t *i;
+	alpm_list_t *core = NULL;
+
+	colon_printf(_("Starting core system upgrade...\n"));
+	alpm_logaction(config->handle, PACMAN_CALLER_PREFIX,
+			"starting core system upgrade\n");
+
+	if(alpm_sync_sysupgrade_core(config->handle, config->op_s_upgrade >= 2) == -1) {
+		pm_printf(ALPM_LOG_ERROR, "%s\n", alpm_strerror(alpm_errno(config->handle)));
+		trans_release();
+		return 1;
+	}
+
+	*needed = 0;
+	for(i = alpm_trans_get_add(config->handle); i; i = i->next) {
+		alpm_pkg_t *pkg = i->data;
+		if (alpm_pkg_is_core_package(pkg)) {
+			core = alpm_list_add(core, pkg);
+			*needed = 1;
+		}
+	}
+
+	if(!(*needed)) {
+		if (!config->print) {
+			printf(_(" there is nothing to do\n"));
+		}
+		return 0;
+	}
+
+	/* hooks are most likely doomed to fail in a core upgrade, so disable them */
+	alpm_option_set_hookdirs(config->handle, NULL);
+
+	config->handle->trans->add = core;
+	pm_printf(ALPM_LOG_WARNING, _("terminate other MSYS2 programs before proceeding\n"));
+	retval = sync_prepare_execute();
+	if(retval == 0) {
+		int response = 0;
+		do {
+			response = yesno(_("To complete this update all MSYS2 processes including this terminal will be closed. Confirm to proceed"));
+		} while(!response);
+
+		if (kill_all_other_msys_processes() != 0) {
+			pm_printf(ALPM_LOG_WARNING, _("terminating MSYS2 processes failed\n"));
+			exit(1);
+		}
+		exit(0);
+	}
+	return retval;
+}
+#endif
+
 static int sync_trans(alpm_list_t *targets)
 {
+#ifdef __MSYS__
+	int found_core_updates = 0;
+#endif
 	int retval = 0;
 	alpm_list_t *i;
 
@@ -713,6 +845,14 @@ static int sync_trans(alpm_list_t *targets)
 	}
 
 	if(config->op_s_upgrade) {
+#ifdef __MSYS__
+		if((retval = core_update(&found_core_updates))) {
+			return retval;
+		}
+		if(found_core_updates) {
+			return retval;
+		}
+#endif
 		if(!config->print) {
 			colon_printf(_("Starting full system upgrade...\n"));
 			alpm_logaction(config->handle, PACMAN_CALLER_PREFIX,
