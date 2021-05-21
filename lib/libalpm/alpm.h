@@ -2805,6 +2805,15 @@ int alpm_trans_release(alpm_handle_t *handle);
  * @return 0 on success, -1 on error (pm_errno is set accordingly)
  */
 int alpm_sync_sysupgrade(alpm_handle_t *handle, int enable_downgrade);
+#ifdef __MSYS__
+int alpm_sync_sysupgrade_core(alpm_handle_t *handle, int enable_downgrade);
+
+/** Informs whether a package is a core package.
+ * @param pkg the package to check
+ * @return non-zero if this is a core package, zero otherwise
+ */
+int alpm_pkg_is_core_package(const alpm_pkg_t *pkg);
+#endif
 
 /** Add a package to the transaction.
  * If the package was loaded by alpm_pkg_load(), it will be freed upon

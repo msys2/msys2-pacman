@@ -197,7 +197,13 @@ static alpm_list_t *check_replacers(alpm_handle_t *handle, alpm_pkg_t *lpkg,
 	return replacers;
 }
 
+/** Search for packages to upgrade and add them to the transaction. */
+#ifdef __MSYS__
+static
+int SYMEXPORT do_alpm_sync_sysupgrade(alpm_handle_t *handle, int enable_downgrade, int core_update)
+#else
 int SYMEXPORT alpm_sync_sysupgrade(alpm_handle_t *handle, int enable_downgrade)
+#endif
 {
 	alpm_list_t *i, *j;
 	alpm_trans_t *trans;
@@ -210,6 +216,13 @@ int SYMEXPORT alpm_sync_sysupgrade(alpm_handle_t *handle, int enable_downgrade)
 	_alpm_log(handle, ALPM_LOG_DEBUG, "checking for package upgrades\n");
 	for(i = _alpm_db_get_pkgcache(handle->db_local); i; i = i->next) {
 		alpm_pkg_t *lpkg = i->data;
+
+#ifdef __MSYS__
+		/* Skip regular packages in core update, and core packages in regular update */
+		if(core_update != alpm_pkg_is_core_package(lpkg)) {
+			continue;
+		}
+#endif
 
 		if(alpm_pkg_find(trans->remove, lpkg->name)) {
 			_alpm_log(handle, ALPM_LOG_DEBUG, "%s is marked for removal -- skipping\n", lpkg->name);
@@ -251,6 +264,18 @@ int SYMEXPORT alpm_sync_sysupgrade(alpm_handle_t *handle, int enable_downgrade)
 
 	return 0;
 }
+
+#ifdef __MSYS__
+int SYMEXPORT alpm_sync_sysupgrade(alpm_handle_t *handle, int enable_downgrade)
+{
+	return do_alpm_sync_sysupgrade(handle, enable_downgrade, 0);
+}
+
+int SYMEXPORT alpm_sync_sysupgrade_core(alpm_handle_t *handle, int enable_downgrade)
+{
+	return do_alpm_sync_sysupgrade(handle, enable_downgrade, 1);
+}
+#endif
 
 alpm_list_t SYMEXPORT *alpm_find_group_pkgs(alpm_list_t *dbs,
 		const char *name)
