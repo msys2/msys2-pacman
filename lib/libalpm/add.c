@@ -266,6 +266,7 @@ static int extract_single_file(alpm_handle_t *handle, struct archive *archive,
 					"filesystem: %o  package: %o\n", filename, lsbuf.st_mode & mask,
 					entrymode & mask);
 		}
+#ifndef __MSYS__
 
 #if 0
 		/* Disable this warning until our user management in packages has improved.
@@ -283,6 +284,7 @@ static int extract_single_file(alpm_handle_t *handle, struct archive *archive,
 		}
 #endif
 
+#endif
 		_alpm_log(handle, ALPM_LOG_DEBUG, "extract: skipping dir extraction of %s\n",
 				filename);
 		archive_read_data_skip(archive);
