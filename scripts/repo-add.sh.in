@@ -531,7 +531,7 @@ create_db() {
 			warning "$(gettext "No packages remain, creating empty database.")"
 			files=(-T /dev/null)
 		fi
-		bsdtar -cf - "${files[@]}" | compress_as "$filename" > "$tempname"
+		bsdtar --uid 1 --uname root --gid 1 --gname root -cf - "${files[@]}" | compress_as "$filename" > "$tempname"
 		popd >/dev/null
 
 		create_signature "$tempname"
