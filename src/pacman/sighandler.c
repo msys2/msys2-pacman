@@ -21,6 +21,10 @@
 #include <signal.h>
 #include <unistd.h>
 
+#ifdef __MSYS__
+#include <termios.h>
+#endif
+
 #include <alpm.h>
 
 #include "conf.h"
@@ -53,8 +57,11 @@ static void _reset_handler(int signum)
  */
 static void soft_interrupt_handler(int signum)
 {
-	console_cursor_move_end();
+#ifdef __MSYS__
+	struct termios term;
+#endif
 
+	console_cursor_move_end();
 	if(signum == SIGINT) {
 		const char msg[] = "\nInterrupt signal received\n";
 		xwrite(STDERR_FILENO, msg, ARRAYSIZE(msg) - 1);
@@ -69,6 +76,13 @@ static void soft_interrupt_handler(int signum)
 		return;
 	}
 	alpm_unlock(config->handle);
+#ifdef __MSYS__
+	/* restore input printing possibly disabled by core update */
+	if(tcgetattr(STDIN_FILENO, &term) == 0) {
+		term.c_lflag |= ECHO;
+		tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
+	}
+#endif
 	/* output a newline to be sure we clear any line we may be on */
 	xwrite(STDOUT_FILENO, "\n", 1);
 	_Exit(128 + signum);
