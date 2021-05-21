@@ -55,7 +55,7 @@ foreach page : manpages
       '-f', 'manpage',
       '--xsltproc-opts', '-param man.endnotes.list.enabled 0 -param man.endnotes.are.numbered 0',
       '-D', '@OUTDIR@',
-      '--asciidoc-opts', ' '.join(asciidoc_opts),
+      '--asciidoc-opts=' + ' '.join(asciidoc_opts),
       '@INPUT@',
     ],
     input : input,
