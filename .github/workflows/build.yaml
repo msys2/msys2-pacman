@@ -1,0 +1,55 @@
+name: build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          update: true
+          install: >-
+            msys2-devel
+            base-devel
+            asciidoc
+            doxygen
+            git
+            meson
+            ninja
+            gettext-devel
+            heimdal-devel
+            libarchive-devel
+            libcurl-devel
+            libgpgme-devel
+            libsqlite-devel
+            libunistring-devel
+
+      - name: Build
+        shell: msys2 {0}
+        run: |
+          meson _build \
+            --auto-features=enabled \
+            --default-library=static \
+            -Dbuildstatic=true \
+            -Ddoxygen=enabled \
+            -Dfile-seccomp=disabled
+
+          meson compile -C _build
+
+      - name: Install
+        shell: msys2 {0}
+        run: |
+          DESTDIR="$(pwd)"/_dest meson install -C _build
+
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: install
+          path: _dest/
