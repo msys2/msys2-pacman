@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
 #
 #   pacman-db-upgrade - upgrade the local pacman db to a newer format
 #
@@ -78,9 +78,13 @@ resolve_dir() {
 # PROGRAM START
 
 # determine whether we have gettext; make it a no-op if we do not
-if ! type gettext &>/dev/null; then
+if ! type -p gettext >/dev/null; then
 	gettext() {
-		echo "$@"
+		printf "%s\n" "$@"
+	}
+else
+	gettext() {
+		/usr/bin/gettext "$@"
 	}
 fi
 
@@ -137,7 +141,7 @@ lockfile="${dbroot}/db.lck"
 
 # make sure pacman isn't running
 if [[ -f $lockfile ]]; then
-	die "$(gettext "Pacman lock file was found. Cannot run while pacman is running.")"
+	die "$(/bin/gettext "Pacman lock file was found. Cannot run while pacman is running.")"
 fi
 # do not let pacman run while we do this
 touch "$lockfile"

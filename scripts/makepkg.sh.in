@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #   makepkg - make packages compatible for use with pacman
 #
@@ -26,7 +26,7 @@
 
 # makepkg uses quite a few external programs during its execution. You
 # need to have at least the following installed for makepkg to function:
-#   awk, bsdtar (libarchive), bzip2, coreutils, fakeroot, file, find (findutils),
+#   awk, bsdtar (libarchive), bzip2, coreutils, file, find (findutils),
 #   gettext, gpg, grep, gzip, sed, tput (ncurses), xz
 
 # gettext initialization
@@ -59,7 +59,6 @@ FORCE=0
 GENINTEG=0
 HOLDVER=0
 IGNOREARCH=0
-INFAKEROOT=0
 INSTALL=0
 LOGGING=0
 NEEDED=0
@@ -105,10 +104,9 @@ done
 trap_exit() {
 	local signal=$1; shift
 
-	if (( ! INFAKEROOT )); then
-		echo
-		error "$@"
-	fi
+	echo
+	error "$@"
+
 	[[ -n $srclinks ]] && rm -rf "$srclinks"
 
 	# unset the trap for this signal, and then call the default handler
@@ -123,11 +121,6 @@ trap_exit() {
 clean_up() {
 	local EXIT_CODE=$?
 
-	if (( INFAKEROOT )); then
-		# Don't clean up when leaving fakeroot, we're not done yet.
-		return 0
-	fi
-
 	if [[ -p $logpipe ]]; then
 		rm "$logpipe"
 	fi
@@ -137,7 +130,7 @@ clean_up() {
 
 		# If it's a clean exit and -c/--clean has been passed...
 		msg "$(gettext "Cleaning up...")"
-		rm -rf "$pkgdirbase" "$srcdir"
+		rm -rf "$pkgdirbase" "$srcdir" "$destdir"
 		if [[ -n $pkgbase ]]; then
 			local fullver=$(get_full_version)
 			# Can't do this unless the BUILDSCRIPT has been sourced.
@@ -177,11 +170,6 @@ clean_up() {
 	else
 	    exit $EXIT_CODE
 	fi
-}
-
-enter_fakeroot() {
-	msg "$(gettext "Entering %s environment...")" "fakeroot"
-	fakeroot -- bash -$- "${BASH_SOURCE[0]}" -F "${ARGLIST[@]}" || exit $?
 }
 
 # Automatically update pkgver variable if a pkgver() function is provided
@@ -237,10 +225,6 @@ run_pacman() {
 			else
 				cmd=("${PACMAN_AUTH[@]}" "${cmd[@]}")
 			fi
-		elif type -p sudo >/dev/null; then
-			cmd=(sudo "${cmd[@]}")
-		else
-			cmd=(su root -c "$cmdescape")
 		fi
 		local lockfile="$(pacman-conf DBPath)/db.lck"
 		while [[ -f $lockfile ]]; do
@@ -440,7 +424,7 @@ run_function() {
 
 		$pkgfunc &>"$logpipe"
 
-		wait -f $teepid
+		wait $teepid
 		rm "$logpipe"
 	else
 		"$pkgfunc"
@@ -468,7 +452,7 @@ find_libdepends() {
 
 	sodepends=0
 	for d in "${depends[@]}"; do
-		if [[ $d = *.so ]]; then
+		if [[ $d = *.dll ]]; then
 			sodepends=1
 			break
 		fi
@@ -479,28 +463,33 @@ find_libdepends() {
 		return 0
 	fi
 
-	local libdeps filename soarch sofile soname soversion
+	local libdeps filename soarch sofile soname
 	declare -A libdeps
 
 	while IFS= read -rd '' filename; do
-		# get architecture of the file; if soarch is empty it's not an ELF binary
-		soarch=$(LC_ALL=C readelf -h "$filename" 2>/dev/null | sed -n 's/.*Class.*ELF\(32\|64\)/\1/p')
+		# get architecture of the file; if soarch is empty it's not an binary
+		soarch=$(LANG=en_US.UTF-8 LC_ALL=C objdump -a "$filename" | sed -n 's/.*file format.*pei-\(i386\|x86-64\)/\1/p')
 		[[ -n "$soarch" ]] || continue
+		case "$soarch" in
+			i386)
+				soarch=i686
+			;;
+			x86-64)
+				soarch=x86_64
+			;;
+		esac
 
 		# process all libraries needed by the binary
-		for sofile in $(LC_ALL=C readelf -d "$filename" 2>/dev/null | sed -nr 's/.*Shared library: \[(.*)\].*/\1/p')
+		for sofile in $(LC_ALL=C objdump -x "$filename" 2>/dev/null | sed -nr 's/.*DLL Name: (.*).*/\1/p')
 		do
-			# extract the library name: libfoo.so
-			soname="${sofile%.so?(+(.+([0-9])))}".so
-			# extract the major version: 1
-			soversion="${sofile##*\.so\.}"
+			soname=${sofile}
 
 			if [[ ${libdeps[$soname]} ]]; then
-				if [[ ${libdeps[$soname]} != *${soversion}-${soarch}* ]]; then
-					libdeps[$soname]+=" ${soversion}-${soarch}"
+				if [[ ${libdeps[$soname]} != *${soarch}* ]]; then
+					libdeps[$soname]+=" ${soarch}"
 				fi
 			else
-				libdeps[$soname]="${soversion}-${soarch}"
+				libdeps[$soname]="${soarch}"
 			fi
 		done
 	done < <(find "$pkgdir" -type f -perm -u+x -print0)
@@ -508,7 +497,7 @@ find_libdepends() {
 	local libdepends v
 	for d in "${depends[@]}"; do
 		case "$d" in
-			*.so)
+			*.dll)
 				if [[ ${libdeps[$d]} ]]; then
 					for v in ${libdeps[$d]}; do
 						libdepends+=("$d=$v")
@@ -534,30 +523,23 @@ find_libprovides() {
 		missing=0
 		versioned_provides=()
 		case "$p" in
-			*.so)
-				mapfile -t filename < <(find "$pkgdir" -type f -name $p\* | LC_ALL=C sort)
+			*.dll)
+				mapfile -t filename < <(find "$pkgdir" -type f -name $p)
 				if [[ $filename ]]; then
 					# packages may provide multiple versions of the same library
 					for fn in "${filename[@]}"; do
-						# check if we really have a shared object
-						if LC_ALL=C readelf -h "$fn" 2>/dev/null | grep -q '.*Type:.*DYN (Shared object file).*'; then
-							# get the string binaries link to (e.g. libfoo.so.1.2 -> libfoo.so.1)
-							local sofile=$(LC_ALL=C readelf -d "$fn" 2>/dev/null | sed -n 's/.*Library soname: \[\(.*\)\].*/\1/p')
-							if [[ -z "$sofile" ]]; then
-								warning "$(gettext "Library listed in %s is not versioned: %s")" "'provides'" "$p"
-								continue
-							fi
+						# get the library architecture (32 or 64 bit)
+						local soarch=$(LC_ALL=C objdump -a "$fn" | sed -n 's/.*file format.*pei-\(i386\|x86-64\)/\1/p')
+						case "$soarch" in
+							i386)
+								soarch=i686
+							;;
+							x86-64)
+								soarch=x86_64
+							;;
+						esac
 
-							# get the library architecture (32 or 64 bit)
-							local soarch=$(LC_ALL=C readelf -h "$fn" | sed -n 's/.*Class.*ELF\(32\|64\)/\1/p')
-
-							# extract the library major version
-							local soversion="${sofile##*\.so\.}"
-
-							versioned_provides+=("${p}=${soversion}-${soarch}")
-						else
-							warning "$(gettext "Library listed in %s is not a shared object: %s")" "'provides'" "$p"
-						fi
+						versioned_provides+=("${p}=${soarch}")
 					done
 				else
 					missing=1
@@ -597,7 +579,6 @@ write_pkginfo() {
 	merge_arch_attrs
 
 	printf "# Generated by makepkg %s\n" "$makepkg_version"
-	printf "# using %s\n" "$(fakeroot -v)"
 
 	write_kv_pair "pkgname" "$pkgname"
 	write_kv_pair "pkgbase" "$pkgbase"
@@ -750,7 +731,7 @@ create_debug_package() {
 	local pkgdir="$pkgdirbase/$pkgbase-@DEBUGSUFFIX@"
 
 	# check if we have any debug symbols to package
-	if dir_is_empty "$pkgdir/usr/lib/debug"; then
+	if dir_is_empty "$pkgdir"; then
 		return 0
 	fi
 
@@ -939,6 +920,11 @@ restore_package_variables() {
 
 run_single_packaging() {
 	local pkgdir="$pkgdirbase/$pkgname"
+		# clean existing pkg directory
+		if [[ -d "$pkgdir" ]]; then
+			msg "$(gettext "Removing existing %s directory...")" "\$pkgdir/"
+			rm -rf "$pkgdir"
+		fi
 	mkdir "$pkgdir"
 	if [[ -n $1 ]] || (( PKGFUNC )); then
 		run_package $1
@@ -1032,12 +1018,16 @@ if ! type -p gettext >/dev/null; then
 	gettext() {
 		printf "%s\n" "$@"
 	}
+else
+	gettext() {
+		/usr/bin/gettext "$@"
+	}
 fi
 
 ARGLIST=("$@")
 
 # Parse Command Line Options.
-OPT_SHORT="AcCdefFghiLmop:rRsSV"
+OPT_SHORT="AcCdefghiLmop:rRsSV"
 OPT_LONG=('allsource' 'check' 'clean' 'cleanbuild' 'config:' 'force' 'geninteg'
           'help' 'holdver' 'ignorearch' 'install' 'key:' 'log' 'noarchive' 'nobuild'
           'nocolor' 'nocheck' 'nodeps' 'noextract' 'noprepare' 'nosign' 'packagelist'
@@ -1071,7 +1061,6 @@ while true; do
 		-d|--nodeps)      NODEPS=1 ;;
 		-e|--noextract)   NOEXTRACT=1 ;;
 		-f|--force)       FORCE=1 ;;
-		-F)               INFAKEROOT=1 ;;
 		# generating integrity checks does not depend on architecture
 		-g|--geninteg)    BUILDPKG=0 GENINTEG=1 IGNOREARCH=1;;
 		--holdver)        HOLDVER=1 ;;
@@ -1184,19 +1173,6 @@ fi
 if (( LOGGING )) && ! ensure_writable_dir "LOGDEST" "$LOGDEST"; then
 	plainerr "$(gettext "Aborting...")"
 	exit $E_FS_PERMISSIONS
-fi
-
-if (( ! INFAKEROOT )); then
-	if (( EUID == 0 )); then
-		error "$(gettext "Running %s as root is not allowed as it can cause permanent,\n\
-catastrophic damage to your system.")" "makepkg"
-		exit $E_ROOT
-	fi
-else
-	if [[ -z $FAKEROOTKEY ]]; then
-		error "$(gettext "Do not use the %s option. This option is only for internal use by %s.")" "'-F'" "makepkg"
-		exit $E_INVALID_OPTION
-	fi
 fi
 
 unset pkgname "${pkgbuild_schema_strings[@]}" "${pkgbuild_schema_arrays[@]}"
@@ -1319,29 +1295,6 @@ if (( ! PKGVERFUNC )); then
 	check_build_status
 fi
 
-# Run the bare minimum in fakeroot
-if (( INFAKEROOT )); then
-	if (( SOURCEONLY )); then
-		create_srcpackage
-		msg "$(gettext "Leaving %s environment.")" "fakeroot"
-		exit $E_OK
-	fi
-
-	prepare_buildenv
-
-	chmod 755 "$pkgdirbase"
-	if (( ! SPLITPKG )); then
-		run_single_packaging
-	else
-		run_split_packaging
-	fi
-
-	create_debug_package
-
-	msg "$(gettext "Leaving %s environment.")" "fakeroot"
-	exit $E_OK
-fi
-
 msg "$(gettext "Making package: %s")" "$pkgbase $basever ($(date +%c))"
 
 # if we are creating a source-only package, go no further
@@ -1365,7 +1318,7 @@ if (( SOURCEONLY )); then
 	check_source_integrity all
 	cd_safe "$startdir"
 
-	enter_fakeroot
+	create_srcpackage
 
 	if [[ $SIGNPKG = 'y' ]]; then
 		msg "$(gettext "Signing package...")"
@@ -1414,6 +1367,9 @@ fi
 mkdir -p "$srcdir"
 chmod a-s "$srcdir"
 cd_safe "$srcdir"
+
+export MINGW_CHOST MINGW_PREFIX MINGW_PACKAGE_PREFIX
+export DXSDK_DIR ACLOCAL_PATH PKG_CONFIG_PATH
 
 if (( !REPKG )); then
 	if (( NOEXTRACT && ! VERIFYSOURCE )); then
@@ -1467,15 +1423,23 @@ else
 		cd_safe "$startdir"
 	fi
 
-	enter_fakeroot
+	# if inhibiting archive creation, go no further
+	if (( NOARCHIVE )); then
+		msg "$(gettext "Package directory is ready.")"
+		exit $E_OK
+	fi
+	mkdir -p "$pkgdirbase"
+	chmod a-srwx "$pkgdirbase"
+	chmod 755 "$pkgdirbase"
+	if (( ! SPLITPKG )); then
+		run_single_packaging
+	else
+		run_split_packaging
+	fi
+
+	create_debug_package
 
 	create_package_signatures || exit $E_PRETTY_BAD_PRIVACY
-fi
-
-# if inhibiting archive creation, go no further
-if (( NOARCHIVE )); then
-	msg "$(gettext "Package directory is ready.")"
-	exit $E_OK
 fi
 
 msg "$(gettext "Finished making: %s")" "$pkgbase $basever ($(date +%c))"

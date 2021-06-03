@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #   repo-add - add a package to a given repo database file
 #   repo-remove - remove a package entry from a given repo database file
@@ -46,6 +46,7 @@ PREVENT_DOWNGRADE=0
 # Import libmakepkg
 source "$LIBRARY"/util/compress.sh
 source "$LIBRARY"/util/message.sh
+source "$LIBRARY"/utils_fixed_path.sh
 
 # ensure we have a sane umask set
 umask 0022
@@ -562,9 +563,13 @@ clean_up() {
 # PROGRAM START
 
 # determine whether we have gettext; make it a no-op if we do not
-if ! type gettext &>/dev/null; then
+if ! type -p gettext &>/dev/null; then
 	gettext() {
-		echo "$@"
+		printf "%s\n" "$@"
+	}
+else
+	gettext() {
+		/usr/bin/gettext "$@"
 	}
 fi
 
