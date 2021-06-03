@@ -35,9 +35,9 @@ tidy_staticlibs() {
 		msg2 "$(gettext "Removing static library files...")"
 		local l
 		while IFS= read -rd '' l; do
-			if [[ -f "${l%.a}.so" || -h "${l%.a}.so" ]]; then
+			if [[ -f "${l%.a}.dll.a" || -h "${l%.a}.dll.a" ]]; then
 				rm "$l"
 			fi
-		done < <(find . ! -type d -name "*.a" -print0)
+		done < <(find . ! -type d \( -name "*.a" ! -name "*.dll.a" \) -print0)
 	fi
 }

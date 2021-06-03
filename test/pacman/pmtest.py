@@ -239,19 +239,6 @@ class pmtest(object):
         vprint("\tpacman %s" % self.args)
 
         cmd = []
-        if os.geteuid() != 0:
-            fakeroot = util.which("fakeroot")
-            if not fakeroot:
-                tap.diag("WARNING: fakeroot not found!")
-            else:
-                cmd.append("fakeroot")
-
-            fakechroot = util.which("fakechroot")
-            if not fakechroot:
-                tap.diag("WARNING: fakechroot not found!")
-            else:
-                cmd.append("fakechroot")
-
         if pacman["gdb"]:
             cmd.extend(["libtool", "execute", "gdb", "--args"])
         if pacman["valgrind"]:
@@ -294,8 +281,10 @@ class pmtest(object):
         # Change to the tmp dir before running pacman, so that local package
         # archives are made available more easily.
         time_start = time.time()
-        self.retcode = subprocess.call(cmd, stdout=output, stderr=output,
-                cwd=os.path.join(self.root, util.TMPDIR), env={'LC_ALL': 'C'})
+        self.retcode = subprocess.call(cmd,
+                cwd=os.path.join(self.root, util.TMPDIR),
+                env={'LC_ALL': 'C', 'PATH': os.environ['PATH']},
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time_end = time.time()
         vprint("\ttime elapsed: %.2fs" % (time_end - time_start))
 
