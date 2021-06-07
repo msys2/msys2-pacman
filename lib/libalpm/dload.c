@@ -604,10 +604,10 @@ static int curl_check_finished_download(CURLM *curlm, CURLMsg *msg,
 	if(!payload->signature && payload->download_signature && curlerr == CURLE_OK && payload->respcode < 400) {
 		struct dload_payload *sig = NULL;
 
-		int len = strlen(effective_url) + 5;
+		int len = strlen(payload->fileurl) + 5;
 		CALLOC(sig, 1, sizeof(*sig), GOTO_ERR(handle, ALPM_ERR_MEMORY, cleanup));
 		MALLOC(sig->fileurl, len, FREE(sig); GOTO_ERR(handle, ALPM_ERR_MEMORY, cleanup));
-		snprintf(sig->fileurl, len, "%s.sig", effective_url);
+		snprintf(sig->fileurl, len, "%s.sig", payload->fileurl);
 
 		if(payload->trust_remote_name) {
 			/* In this case server might provide a new name for the main payload.
