@@ -60,7 +60,7 @@ canonicalize_path() {
 	if [[ -d $path ]]; then
 		(
 			cd_safe "$path"
-			pwd -P
+			pwd
 		)
 	else
 		printf "%s\n" "$path"

@@ -43,7 +43,7 @@ unset GREP_OPTIONS
 declare -r makepkg_version='@PACKAGE_VERSION@'
 declare -r confdir='@sysconfdir@'
 declare -r BUILDSCRIPT='@BUILDSCRIPT@'
-declare -r startdir="$(pwd -P)"
+declare -r startdir="$(pwd)"
 
 LIBRARY=${LIBRARY:-'@libmakepkgdir@'}
 
