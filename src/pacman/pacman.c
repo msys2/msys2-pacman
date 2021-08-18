@@ -1156,6 +1156,12 @@ int main(int argc, char *argv[])
 				if(line[nread - 1] == '\n') {
 					/* remove trailing newline */
 					line[nread - 1] = '\0';
+#ifdef __MSYS__
+					if (line[nread - 2] == '\r') {
+						/* remove trailing carriage returns */
+						line[nread - 2] = '\0';
+					}
+#endif
 				}
 				if(line[0] == '\0') {
 					/* skip empty lines */
