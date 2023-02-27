@@ -731,7 +731,7 @@ create_debug_package() {
 	local pkgdir="$pkgdirbase/$pkgbase-@DEBUGSUFFIX@"
 
 	# check if we have any debug symbols to package
-	if dir_is_empty "$pkgdir/usr/lib/debug"; then
+	if dir_is_empty "$pkgdir"; then
 		return 0
 	fi
 
