@@ -137,7 +137,7 @@ clean_up() {
 
 		# If it's a clean exit and -c/--clean has been passed...
 		msg "$(gettext "Cleaning up...")"
-		rm -rf "$pkgdirbase" "$srcdir"
+		rm -rf "$pkgdirbase" "$srcdir" "$destdir"
 		if [[ -n $pkgbase ]]; then
 			local fullver=$(get_full_version)
 			# Can't do this unless the BUILDSCRIPT has been sourced.
@@ -939,6 +939,11 @@ restore_package_variables() {
 
 run_single_packaging() {
 	local pkgdir="$pkgdirbase/$pkgname"
+		# clean existing pkg directory
+		if [[ -d "$pkgdir" ]]; then
+			msg "$(gettext "Removing existing %s directory...")" "\$pkgdir/"
+			rm -rf "$pkgdir"
+		fi
 	mkdir "$pkgdir"
 	if [[ -n $1 ]] || (( PKGFUNC )); then
 		run_package $1
