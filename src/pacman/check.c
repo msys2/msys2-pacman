@@ -75,6 +75,7 @@ static int check_file_permissions(const char *pkgname, const char *filepath,
 	int errors = 0;
 	mode_t fsmode;
 
+#ifndef __MSYS__
 	/* uid */
 	if(st->st_uid != archive_entry_uid(entry)) {
 		errors++;
@@ -92,6 +93,7 @@ static int check_file_permissions(const char *pkgname, const char *filepath,
 					pkgname, filepath);
 		}
 	}
+#endif
 
 	/* mode */
 	fsmode = st->st_mode & (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
