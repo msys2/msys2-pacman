@@ -4,12 +4,10 @@ sources = [
   'ccache.sh.in',
   'checksum.sh.in',
   'distcc.sh.in',
-  'fakeroot.sh.in',
   'gpg.sh.in',
   'gzip.sh.in',
   'pacman.sh.in',
   'strip.sh.in',
-  'sudo.sh.in',
   'vcs.sh.in',
 ]
 
