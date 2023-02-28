@@ -1425,6 +1425,9 @@ mkdir -p "$srcdir"
 chmod a-s "$srcdir"
 cd_safe "$srcdir"
 
+export MINGW_CHOST MINGW_PREFIX MINGW_PACKAGE_PREFIX
+export DXSDK_DIR ACLOCAL_PATH PKG_CONFIG_PATH
+
 if (( !REPKG )); then
 	if (( NOEXTRACT && ! VERIFYSOURCE )); then
 		warning "$(gettext "Using existing %s tree")" "\$srcdir/"
