@@ -61,7 +61,12 @@ static int search_path(char **filename, struct stat *bufptr)
 			path[--plen] = '\0';
 		}
 
-		fullname = malloc(plen + flen + 2);
+#ifdef __MSYS__
+		/* Reserve 4 additional bytes for a potential ".exe" extension */
+		fullname = malloc(plen + 1 + flen + 4 + 1);
+#else
+		fullname = malloc(plen + 1 + flen + 1);
+#endif
 		if(!fullname) {
 			free(envpath);
 			return -1;
@@ -70,6 +75,26 @@ static int search_path(char **filename, struct stat *bufptr)
 
 		if(lstat(fullname, bufptr) == 0) {
 			free(*filename);
+#ifdef __MSYS__
+			/* Make sure the filename is not supposed to have .exe appended
+			 * MSYS lstat tolerates omission, but the ownership check doesn't */
+			strcat(fullname, ".exe");
+			struct stat sbExe;
+			if (lstat(fullname, &sbExe) == 0) {
+				if (sbExe.st_ino == bufptr->st_ino 
+						&& sbExe.st_dev == bufptr->st_dev) {
+					/* file is the same with and without .exe suffix
+					 * => .exe suffix probably required for ownership check. */
+					*filename = fullname;
+					*bufptr = sbExe;
+					free(envpath);
+					return 0;
+				}
+			}
+			/* undo .exe suffix, because there is no such file or it's
+			 * different from the one without .exe suffix. */
+			fullname[plen + 1 + flen] = '\0';
+#endif
 			*filename = fullname;
 			free(envpath);
 			return 0;
