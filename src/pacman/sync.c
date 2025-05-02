@@ -856,11 +856,19 @@ static int sync_trans(alpm_list_t *targets)
 
 	if(config->op_s_upgrade) {
 #ifdef __MSYS__
-		if((retval = core_update(&found_core_updates))) {
-			return retval;
-		}
-		if(found_core_updates) {
-			return retval;
+		if (config->print || config->op_s_downloadonly || strcmp(config->rootdir, "/") != 0) {
+			if(alpm_sync_sysupgrade_core(config->handle, config->op_s_upgrade >= 2) == -1) {
+				pm_printf(ALPM_LOG_ERROR, "%s\n", alpm_strerror(alpm_errno(config->handle)));
+				trans_release();
+				return 1;
+			}
+		} else {
+			if((retval = core_update(&found_core_updates))) {
+				return retval;
+			}
+			if(found_core_updates) {
+				return retval;
+			}
 		}
 #endif
 		if(!config->print) {
