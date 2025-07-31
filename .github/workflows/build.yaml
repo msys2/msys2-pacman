@@ -53,3 +53,26 @@ jobs:
         with:
           name: install
           path: _dest/
+
+  build-linux:
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          apt update
+          apt -y install --no-install-recommends \
+            git pkg-config meson gcc libtool \
+            libgpgme-dev libarchive-dev libcurl4-openssl-dev libssl-dev curl \
+            gettext python3 python3-setuptools dash gawk ca-certificates \
+            fakeroot fakechroot
+
+      - name: Build
+        run: |
+          meson setup --buildtype=debug build
+          ninja -C build
+          fakechroot meson test -C build
