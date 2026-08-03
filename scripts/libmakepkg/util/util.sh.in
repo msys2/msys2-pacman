@@ -122,3 +122,12 @@ append_once() {
 		var+=" $value"
 	fi
 }
+
+# Helper macros to help make tasks easier
+# This is not meant to be used by makepkg itself, but by other PKGBUILD scripts
+apply_patch_with_msg() {
+	for _patch in "$@"; do
+		msg2 "Applying ${_patch}"
+		patch -Nbp1 -i "${srcdir}/${_patch}"
+	done
+}
