@@ -143,7 +143,7 @@ lockfile="${dbroot}/db.lck"
 
 # make sure pacman isn't running
 if [[ -f $lockfile ]]; then
-	die "$(/bin/gettext "Pacman lock file was found. Cannot run while pacman is running.")"
+	die "$(gettext "Pacman lock file was found. Cannot run while pacman is running.")"
 fi
 # do not let pacman run while we do this
 touch "$lockfile"

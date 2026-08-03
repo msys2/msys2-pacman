@@ -50,7 +50,6 @@ DB_MISSING=0
 source "$MAKEPKG_LIBRARY"/util/compress.sh
 source "$MAKEPKG_LIBRARY"/util/message.sh
 source "$MAKEPKG_LIBRARY"/util/parseopts.sh
-source "$MAKEPKG_LIBRARY"/utils_fixed_path.sh
 
 # ensure we have a sane umask set
 umask 0022
@@ -233,7 +232,7 @@ db_write_entry() {
 			makedepend) _makedepends+=("$makedepend") ;;
 			checkdepend) _checkdepends+=("$checkdepend") ;;
 		esac
-	done< <(bsdtar -xOqf "$pkgfile" .PKGINFO)
+	done< <(/usr/bin/bsdtar -xOqf "$pkgfile" .PKGINFO)
 
 	# ensure $pkgname and $pkgver variables were found
 	if [[ -z $pkgname || -z $pkgver ]]; then
@@ -337,7 +336,7 @@ db_write_entry() {
 	msg2 "$(gettext "Creating '%s' db entry...")" 'files'
 	local files_path="$tmpdir/files/$pkgname-$pkgver/files"
 	echo "%FILES%" >"$files_path"
-	bsdtar --exclude='^.*' -tf "$pkgfile" | LC_ALL=C sort -u >>"$files_path"
+	/usr/bin/bsdtar --exclude='^.*' -tf "$pkgfile" | LC_ALL=C sort -u >>"$files_path"
 
 	if (( RMEXISTING )); then
 		msg2 "$(gettext "Removing old package file '%s'")" "$oldfilename"
@@ -414,16 +413,16 @@ prepare_repo_db() {
 		if [[ -f $dbfile ]]; then
 			# there are two situations we can have here:
 			# a DB with some entries, or a DB with no contents at all.
-			if ! bsdtar -tqf "$dbfile" '*/desc' >/dev/null 2>&1; then
+			if ! /usr/bin/bsdtar -tqf "$dbfile" '*/desc' >/dev/null 2>&1; then
 				# check empty case
-				if [[ -n $(bsdtar -tqf "$dbfile" '*' 2>/dev/null) ]]; then
+				if [[ -n $(/usr/bin/bsdtar -tqf "$dbfile" '*' 2>/dev/null) ]]; then
 					error "$(gettext "Repository file '%s' is not a proper pacman database.")" "$dbfile"
 					exit 1
 				fi
 			fi
 			verify_signature "$dbfile"
 			msg "$(gettext "Extracting %s to a temporary location...")" "${dbfile##*/}"
-			bsdtar -xf "$dbfile" -C "$tmpdir/$repo"
+			/usr/bin/bsdtar -xf "$dbfile" -C "$tmpdir/$repo"
 		else
 			case $cmd in
 				repo-remove)
@@ -456,7 +455,7 @@ add() {
 	fi
 
 	pkgfile=$1
-	if ! bsdtar -tqf "$pkgfile" .PKGINFO >/dev/null 2>&1; then
+	if ! /usr/bin/bsdtar -tqf "$pkgfile" .PKGINFO >/dev/null 2>&1; then
 		error "$(gettext "'%s' is not a package file, skipping")" "$pkgfile"
 		return 1
 	fi
@@ -538,7 +537,7 @@ create_db() {
 			warning "$(gettext "No packages remain, creating empty database.")"
 			files=(-T /dev/null)
 		fi
-		bsdtar --uid 1 --uname root --gid 1 --gname root -cf - "${files[@]}" | compress_as "$filename" > "$tempname"
+		/usr/bin/bsdtar --uid 1 --uname root --gid 1 --gname root -cf - "${files[@]}" | compress_as "$filename" > "$tempname"
 		popd >/dev/null
 
 		create_signature "$tempname"
