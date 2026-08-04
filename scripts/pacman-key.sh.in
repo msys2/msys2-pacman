@@ -30,7 +30,6 @@ MAKEPKG_LIBRARY=${MAKEPKG_LIBRARY:-'@libmakepkgdir@'}
 # Import libmakepkg
 source "$MAKEPKG_LIBRARY"/util/message.sh
 source "$MAKEPKG_LIBRARY"/util/parseopts.sh
-source "$MAKEPKG_LIBRARY"/utils_fixed_path.sh
 
 # Options
 ADD=0
@@ -244,7 +243,7 @@ initialize() {
 	add_gpg_conf_option "$conffile" 'keyserver-options' 'timeout=10'
 	add_gpg_conf_option "$conffile" 'keyserver-options' 'import-clean'
 
-	local gpg_ver=$(gpg --version | awk '{print $3; exit}')
+	local gpg_ver=$(/usr/bin/gpg --version | awk '{print $3; exit}')
 	if (( $(vercmp "$gpg_ver" 2.2.17) >= 0 )); then
 		add_gpg_conf_option "$conffile" 'keyserver-options' 'no-self-sigs-only'
 	fi
@@ -706,7 +705,7 @@ else
 	unset ALL_OFF BOLD BLUE GREEN RED YELLOW
 fi
 
-if ! type -p gpg >/dev/null; then
+if ! type -p /usr/bin/gpg >/dev/null; then
 	error "$(gettext "Cannot find the %s binary required for all %s operations.")" "gpg" "pacman-key"
 	exit 1
 fi
@@ -723,7 +722,7 @@ KEYRING_IMPORT_DIR=${KEYRING_IMPORT_DIR:-"@keyringdir@"}
 # file, falling back on a hard default
 PACMAN_KEYRING_DIR=${PACMAN_KEYRING_DIR:-$(pacman-conf --config="$CONFIG" gpgdir)}
 
-GPG_PACMAN=(gpg --homedir "${PACMAN_KEYRING_DIR}" --no-permission-warning)
+GPG_PACMAN=(/usr/bin/gpg --homedir "${PACMAN_KEYRING_DIR}" --no-permission-warning)
 if [[ -n ${KEYSERVER} ]]; then
 	GPG_PACMAN+=(--keyserver "${KEYSERVER}")
 fi

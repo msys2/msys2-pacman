@@ -110,7 +110,7 @@ run_target('html',
 custom_target(
   'website.tar.gz',
   command : [
-    'bsdtar', 'czf', '@OUTPUT@',
+    '/usr/bin/bsdtar', 'czf', '@OUTPUT@',
     '-C', meson.current_build_dir(),
   ] + html_files + [
     '-C', meson.current_source_dir(),

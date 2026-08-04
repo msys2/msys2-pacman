@@ -599,7 +599,7 @@ create_package() {
 	find . -exec touch -h -d @$SOURCE_DATE_EPOCH {} +
 
 	msg2 "$(gettext "Generating .MTREE file...")"
-	list_package_files | LANG=C bsdtar -cnf - --format=mtree \
+	list_package_files | LANG=C /usr/bin/bsdtar -cnf - --format=mtree \
 		--options='!all,use-set,type,uid,gid,mode,time,size,sha256,link' \
 		--null --files-from - --exclude .MTREE | gzip -c -f -n > .MTREE
 	touch -d @$SOURCE_DATE_EPOCH .MTREE
@@ -607,7 +607,7 @@ create_package() {
 	msg2 "$(gettext "Compressing package...")"
 	# TODO: Maybe this can be set globally for robustness
 	shopt -s -o pipefail
-	list_package_files | LANG=C bsdtar --no-fflags @BSDTAR_NO_READ_SPARSE@ --no-xattrs --uid 1 --uname root --gid 1 --gname root -cnf - --null --files-from - |
+	list_package_files | LANG=C /usr/bin/bsdtar --no-fflags @BSDTAR_NO_READ_SPARSE@ --no-xattrs --uid 1 --uname root --gid 1 --gname root -cnf - --null --files-from - |
 		compress_as "$PKGEXT" > "${pkg_file}" || ret=$?
 
 	shopt -u -o pipefail
@@ -715,7 +715,7 @@ create_srcpackage() {
 
 	# TODO: Maybe this can be set globally for robustness
 	shopt -s -o pipefail
-	LANG=C bsdtar --no-fflags @BSDTAR_NO_READ_SPARSE@ --uid 1 --uname root --gid 1 --gname root -cLf - ${pkgbase} | compress_as "$SRCEXT" > "${pkg_file}" || ret=$?
+	LANG=C /usr/bin/bsdtar --no-fflags @BSDTAR_NO_READ_SPARSE@ --uid 1 --uname root --gid 1 --gname root -cLf - ${pkgbase} | compress_as "$SRCEXT" > "${pkg_file}" || ret=$?
 
 	shopt -u -o pipefail
 
